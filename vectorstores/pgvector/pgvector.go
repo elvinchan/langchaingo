@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 	"strings"
 
 	"github.com/google/uuid"
@@ -298,7 +299,17 @@ func (s Store) SimilaritySearch(
 		whereQuerys = append(whereQuerys, fmt.Sprintf("data.distance < %f", 1-scoreThreshold))
 	}
 	for k, v := range filter {
-		whereQuerys = append(whereQuerys, fmt.Sprintf("(data.cmetadata ->> '%s') = '%s'", k, v))
+		// Check if the value is a slice
+		if reflect.TypeOf(v).Kind() == reflect.Slice {
+			slice := reflect.ValueOf(v)
+			values := make([]string, 0, slice.Len())
+			for i := 0; i < slice.Len(); i++ {
+				values = append(values, fmt.Sprintf("'%v'", slice.Index(i).Interface()))
+			}
+			whereQuerys = append(whereQuerys, fmt.Sprintf("(data.cmetadata ->> '%s') IN (%s)", k, strings.Join(values, ", ")))
+		} else {
+			whereQuerys = append(whereQuerys, fmt.Sprintf("(data.cmetadata ->> '%s') = '%s'", k, v))
+		}
 	}
 	whereQuery := strings.Join(whereQuerys, " AND ")
 	if len(whereQuery) == 0 {
@@ -363,7 +374,17 @@ func (s Store) Search(
 	}
 	whereQuerys := make([]string, 0)
 	for k, v := range filter {
-		whereQuerys = append(whereQuerys, fmt.Sprintf("(%s.cmetadata ->> '%s') = '%s'", s.embeddingTableName, k, v))
+		// Check if the value is a slice
+		if reflect.TypeOf(v).Kind() == reflect.Slice {
+			slice := reflect.ValueOf(v)
+			values := make([]string, 0, slice.Len())
+			for i := 0; i < slice.Len(); i++ {
+				values = append(values, fmt.Sprintf("'%v'", slice.Index(i).Interface()))
+			}
+			whereQuerys = append(whereQuerys, fmt.Sprintf("(%s.cmetadata ->> '%s') IN (%s)", s.embeddingTableName, k, strings.Join(values, ", ")))
+		} else {
+			whereQuerys = append(whereQuerys, fmt.Sprintf("(%s.cmetadata ->> '%s') = '%s'", s.embeddingTableName, k, v))
+		}
 	}
 	whereQuery := strings.Join(whereQuerys, " AND ")
 	if len(whereQuery) == 0 {
