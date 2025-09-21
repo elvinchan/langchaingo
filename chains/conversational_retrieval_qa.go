@@ -49,6 +49,9 @@ type ConversationalRetrievalQA struct {
 
 	// ReturnSourceDocuments Return the retrieved source documents as part of the final result.
 	ReturnSourceDocuments bool
+
+	// NoRelevantDocumentOutput The output to return when there are no relevant documents.
+	NoRelevantDocumentOutput string
 }
 
 var _ Chain = ConversationalRetrievalQA{}
@@ -118,14 +121,18 @@ func (c ConversationalRetrievalQA) Call(ctx context.Context, values map[string]a
 		return nil, err
 	}
 
-	result, err := Predict(ctx, c.CombineDocumentsChain, map[string]any{
-		"question":        c.rephraseQuestion(query, question),
-		"input_documents": docs,
-	}, options...)
-	if err != nil {
-		return nil, err
+	var result string
+	if len(docs) == 0 && c.NoRelevantDocumentOutput != "" {
+		result = c.NoRelevantDocumentOutput
+	} else {
+		result, err = Predict(ctx, c.CombineDocumentsChain, map[string]any{
+			"question":        c.rephraseQuestion(query, question),
+			"input_documents": docs,
+		}, options...)
+		if err != nil {
+			return nil, err
+		}
 	}
-
 	output := make(map[string]any)
 
 	output[_llmChainDefaultOutputKey] = result
